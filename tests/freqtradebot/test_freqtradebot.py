@@ -986,7 +986,7 @@ def test_execute_entry(
     # Fail to get price...
     mocker.patch(f"{EXMS}.get_rate", MagicMock(return_value=0.0))
 
-    with pytest.raises(PricingError, match="Could not determine entry price."):
+    with pytest.raises(PricingError, match=r"Could not determine entry price\."):
         freqtrade.execute_entry(pair, stake_amount, is_short=is_short)
 
     # In case of custom entry price
@@ -2267,6 +2267,18 @@ def test_manage_open_orders_exit_usercustom(
     freqtrade.manage_open_orders()
     assert log_has_re("Emergency exiting trade.*", caplog)
     assert et_mock.call_count == 1
+    # Full exit
+    assert et_mock.call_args_list[0][1]["sub_trade_amt"] == 30
+
+    et_mock.reset_mock()
+
+    # Full partially filled order
+    # Only places the order for the remaining amount
+    limit_sell_order_old["remaining"] = open_trade_usdt.amount - 10
+    freqtrade.manage_open_orders()
+    assert log_has_re("Emergency exiting trade.*", caplog)
+    assert et_mock.call_count == 1
+    assert et_mock.call_args_list[0][1]["sub_trade_amt"] == 20.0
 
 
 @pytest.mark.parametrize("is_short", [False, True])
@@ -4659,7 +4671,7 @@ def test_reupdate_enter_order_fees(mocker, default_conf_usdt, fee, caplog, is_sh
 
     # Test with trade without orders
     trade = Trade(
-        pair="XRP/ETH",
+        pair="XRP/USDT",
         stake_amount=60.0,
         fee_open=fee.return_value,
         fee_close=fee.return_value,
